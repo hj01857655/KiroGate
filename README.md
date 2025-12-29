@@ -72,28 +72,35 @@ python main.py
 ### Docker 部署
 
 ```bash
-# 方式一: 使用 docker-compose（推荐）
+# 方式一: 使用预构建镜像（推荐）
+docker run -d -p 8000:8000 \
+  -e PROXY_API_KEY="your-password" \
+  -v kirogate_data:/app/data \
+  --name kirogate \
+  ghcr.io/dext7r/kirogate:main
+
+# 方式二: 使用 docker-compose
 cp .env.example .env
 # 编辑 .env 填写你的凭证
 docker-compose up -d
 
-# 方式二: 直接运行（简单模式）
+# 方式三: 本地构建运行
 docker build -t kirogate .
 docker run -d -p 8000:8000 \
   -e PROXY_API_KEY="your-password" \
-  -e REFRESH_TOKEN="your-kiro-refresh-token" \
+  -v kirogate_data:/app/data \
   --name kirogate kirogate
-
-# 方式三: 组合模式（推荐 - 无需配置 REFRESH_TOKEN）
-docker build -t kirogate .
-docker run -d -p 8000:8000 \
-  -e PROXY_API_KEY="your-password" \
-  --name kirogate kirogate
-# 用户在请求中传递 PROXY_API_KEY:REFRESH_TOKEN
 
 # 查看日志
 docker logs -f kirogate
 ```
+
+**镜像标签说明：**
+| 标签 | 说明 |
+|------|------|
+| `ghcr.io/dext7r/kirogate:main` | 最新 main 分支构建 |
+| `ghcr.io/dext7r/kirogate:v1.0.0` | 指定版本（推荐生产使用） |
+| `ghcr.io/dext7r/kirogate:<sha>` | 指定 commit 构建 |
 
 ### Fly.io 部署
 
