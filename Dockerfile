@@ -23,6 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY kiro_gateway/ ./kiro_gateway/
 COPY main.py .
 
+# 创建数据目录（在创建用户前，确保挂载时有正确权限）
+RUN mkdir -p /app/data
+
 # 创建非 root 用户
 RUN useradd --create-home --shell /bin/bash appuser && \
     chown -R appuser:appuser /app
