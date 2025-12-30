@@ -76,6 +76,7 @@ from kiro_gateway.pages import (
     render_status_page,
     render_dashboard_page,
     render_swagger_page,
+    render_register_page,
 )
 
 def _hash_rate_key(value: str) -> str:
@@ -2112,6 +2113,16 @@ async def login_page(request: Request):
     return HTMLResponse(content=render_login_page())
 
 
+@router.get("/register", response_class=HTMLResponse, include_in_schema=False)
+async def register_page(request: Request):
+    """Register page."""
+    user = get_current_user(request)
+    if user:
+        redirect_url = f"{_request_origin(request)}/user"
+        return RedirectResponse(url=redirect_url, status_code=303)
+    return HTMLResponse(content=render_register_page())
+
+
 @router.post("/auth/login", include_in_schema=False)
 async def password_login(request: Request, email: str = Form(...), password: str = Form(...)):
     """Handle email/password login."""
@@ -2143,11 +2154,11 @@ async def password_register(
     from kiro_gateway.user_manager import user_manager
     user, result = user_manager.register_with_email(email=email, password=password, username=username)
     if not user:
-        from kiro_gateway.pages import render_login_page
+        from kiro_gateway.pages import render_register_page
         info = result if result == "注册成功，等待审核" else ""
         error = "" if info else (result or "注册失败")
         return HTMLResponse(
-            content=render_login_page(error=error, info=info, email=email, username=username)
+            content=render_register_page(error=error, info=info, email=email, username=username)
         )
     response = RedirectResponse(url="/user", status_code=303)
     response.set_cookie(

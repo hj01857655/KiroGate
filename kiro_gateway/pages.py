@@ -5892,6 +5892,39 @@ def render_tokens_page(user=None) -> str:
 </html>'''
 
 
+def _build_login_buttons(linuxdo_enabled: bool, github_enabled: bool) -> str:
+    login_buttons = ""
+    if linuxdo_enabled:
+        login_buttons += '''
+          <a href="/oauth2/login" class="btn-login btn-linuxdo">
+            <img src="https://linux.do/uploads/default/optimized/4X/c/c/d/ccd8c210609d498cbeb3d5201d4c259348447562_2_32x32.png" width="24" height="24" alt="LinuxDo" style="border-radius: 6px; background: white; padding: 2px;">
+            <span>LinuxDo 登录</span>
+          </a>
+        '''
+
+    if github_enabled:
+        login_buttons += '''
+          <a href="/oauth2/github/login" class="btn-login btn-github">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+            <span>GitHub 登录</span>
+          </a>
+        '''
+
+    if not login_buttons:
+        login_buttons = '''
+          <div class="p-6 rounded-lg text-center" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35);">
+            <div class="text-3xl mb-3">⚠️</div>
+            <p class="font-medium mb-2" style="color: #d97706;">OAuth2 登录未配置</p>
+            <p class="text-sm" style="color: var(--text-muted);">请在 .env 文件中配置 LinuxDo 或 GitHub OAuth2 凭证</p>
+            <div class="mt-4 text-xs" style="color: var(--text-muted);">
+              参考文档：<a href="/docs" class="text-indigo-400 hover:underline">配置指南</a>
+            </div>
+          </div>
+        '''
+
+    return login_buttons
+
+
 def render_login_page(
     error: str = "",
     info: str = "",
@@ -5899,6 +5932,268 @@ def render_login_page(
     username: str = ""
 ) -> str:
     """Render the login selection page with multiple OAuth2 providers."""
+    from kiro_gateway.metrics import metrics
+    from kiro_gateway.config import OAUTH_CLIENT_ID, GITHUB_CLIENT_ID
+
+    self_use_enabled = metrics.is_self_use_enabled()
+    body_self_use_attr = "true" if self_use_enabled else "false"
+    safe_error = html.escape(error) if error else ""
+    safe_info = html.escape(info) if info else ""
+    safe_email = html.escape(email or "")
+    error_html = (
+        f'<div class="mb-4 px-4 py-3 rounded-lg text-sm" '
+        f'style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171;">'
+        f'{safe_error}</div>'
+        if safe_error else ""
+    )
+    info_html = (
+        f'<div class="mb-4 px-4 py-3 rounded-lg text-sm" '
+        f'style="background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.35); color: #4ade80;">'
+        f'{safe_info}</div>'
+        if safe_info else ""
+    )
+
+    linuxdo_enabled = bool(OAUTH_CLIENT_ID)
+    github_enabled = bool(GITHUB_CLIENT_ID)
+    login_buttons = _build_login_buttons(linuxdo_enabled, github_enabled)
+    if self_use_enabled:
+        register_link_html = '<div class="text-xs" style="color: var(--text-muted);">自用模式下禁止新注册</div>'
+    else:
+        register_link_html = '<a href="/register" class="text-sm text-indigo-400 hover:underline">没有账号？去注册</a>'
+
+    return f'''<!DOCTYPE html>
+<html lang="zh">
+<head>{COMMON_HEAD}
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+    body {{
+      background:
+        radial-gradient(1200px 600px at 10% 10%, rgba(16, 185, 129, 0.14), transparent),
+        radial-gradient(900px 520px at 90% 20%, rgba(14, 165, 233, 0.16), transparent),
+        radial-gradient(800px 500px at 50% 100%, rgba(245, 158, 11, 0.12), transparent),
+        var(--bg-main);
+      font-family: "Space Grotesk", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }}
+    .auth-shell {{
+      position: relative;
+      overflow: hidden;
+    }}
+    .auth-shell::before {{
+      content: "";
+      position: absolute;
+      inset: -10% 0 auto 0;
+      height: 60%;
+      background-image: radial-gradient(circle at 20% 20%, rgba(148, 163, 184, 0.16) 0, transparent 35%);
+      opacity: 0.6;
+      pointer-events: none;
+    }}
+    .auth-grid {{
+      position: relative;
+      display: grid;
+      gap: 2.5rem;
+      align-items: center;
+    }}
+    @media (min-width: 1024px) {{
+      .auth-grid {{ grid-template-columns: 1.05fr 0.95fr; }}
+    }}
+    .auth-card {{
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72));
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 1.75rem;
+      box-shadow: 0 32px 70px -40px rgba(15, 23, 42, 0.45);
+      padding: 2rem;
+      backdrop-filter: blur(18px);
+    }}
+    .dark .auth-card {{
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.82));
+      border-color: rgba(148, 163, 184, 0.22);
+    }}
+    .auth-title {{
+      font-family: "Newsreader", "Songti SC", serif;
+      font-size: 2rem;
+      letter-spacing: 0.02em;
+    }}
+    .auth-subtitle {{
+      color: var(--text-muted);
+    }}
+    .auth-aside {{
+      border-radius: 1.5rem;
+      padding: 2rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(16, 185, 129, 0.1));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    }}
+    .dark .auth-aside {{
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.16));
+    }}
+    .auth-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      background: rgba(15, 23, 42, 0.9);
+      color: #fff;
+    }}
+    .btn-login {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 24px;
+      border-radius: 14px;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }}
+    .btn-login:hover {{ transform: translateY(-2px); box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.35); }}
+    .btn-linuxdo {{ background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: white; }}
+    .btn-linuxdo:hover {{ background: linear-gradient(135deg, #0284c7 0%, #16a34a 100%); }}
+    .btn-github {{ background: #0f172a; color: white; }}
+    .btn-github:hover {{ background: #111827; }}
+    .auth-label {{ font-size: 0.85rem; color: var(--text-muted); }}
+    .auth-input {{
+      width: 100%;
+      padding: 0.75rem 0.95rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }}
+    .auth-input:focus {{
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+    }}
+    .btn-auth {{
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border-radius: 0.9rem;
+      font-weight: 600;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      border: none;
+      cursor: pointer;
+    }}
+    .btn-auth:hover {{ transform: translateY(-1px); box-shadow: 0 12px 28px -16px rgba(15, 23, 42, 0.4); }}
+    .btn-auth:disabled {{
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }}
+    .feature-list {{
+      display: grid;
+      gap: 0.85rem;
+      margin-top: 1.25rem;
+      color: var(--text);
+      font-size: 0.95rem;
+    }}
+    .feature-item {{
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }}
+    .feature-icon {{
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.8rem;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      font-size: 1.05rem;
+    }}
+    @keyframes bounce {{
+      0%, 100% {{ transform: translateY(0); }}
+      50% {{ transform: translateY(-10px); }}
+    }}
+  </style>
+</head>
+<body data-self-use="{body_self_use_attr}">
+  {COMMON_NAV}
+
+  <main class="auth-shell flex-1 py-12 px-4" style="min-height: calc(100vh - 200px);">
+    <div class="max-w-5xl mx-auto">
+      <div class="auth-grid">
+        <div class="auth-card">
+          <div class="mb-8">
+            <span class="auth-badge">登录入口</span>
+            <div class="mt-4">
+              <div class="logo-bounce inline-block text-5xl mb-4">⚡</div>
+              <h1 class="auth-title font-bold mb-2">欢迎回来</h1>
+              <p class="auth-subtitle">用你熟悉的方式继续使用 KiroGate</p>
+            </div>
+          </div>
+          {error_html}
+          {info_html}
+          <div class="self-use-only mb-6 px-4 py-3 rounded-lg text-sm" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #d97706;">
+            自用模式已开启：仅限已注册用户登录。
+          </div>
+
+          <div class="space-y-4 mb-6">
+            <form method="post" action="/auth/login" class="space-y-3">
+              <div class="text-sm font-semibold">邮箱登录</div>
+              <label class="auth-label" for="loginEmail">邮箱</label>
+              <input id="loginEmail" name="email" type="email" class="auth-input" required value="{safe_email}">
+              <label class="auth-label" for="loginPassword">密码</label>
+              <input id="loginPassword" name="password" type="password" class="auth-input" required>
+              <button type="submit" class="btn-auth" style="background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: #fff;">登录</button>
+            </form>
+            <div class="text-right">{register_link_html}</div>
+          </div>
+
+          <div class="space-y-4">
+            {login_buttons}
+          </div>
+        </div>
+
+        <div class="auth-aside">
+          <div class="text-xl font-semibold mb-2">可信赖的 AI 入口</div>
+          <p class="text-sm" style="color: var(--text-muted);">跨模型、跨租户、一站式接入。我们把复杂性留在后端。</p>
+          <div class="feature-list">
+            <div class="feature-item">
+              <div class="feature-icon">🔒</div>
+              <div>
+                <div class="font-medium">安全会话</div>
+                <div class="text-xs" style="color: var(--text-muted);">基于加密与风控策略的登录保护</div>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon">⚡</div>
+              <div>
+                <div class="font-medium">极速接入</div>
+                <div class="text-xs" style="color: var(--text-muted);">一键接入 OpenAI / Anthropic 生态</div>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon">🎯</div>
+              <div>
+                <div class="font-medium">精细配额</div>
+                <div class="text-xs" style="color: var(--text-muted);">清晰可控的 Token / Key 管理</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  {COMMON_FOOTER}
+</body>
+</html>'''
+
+
+def render_register_page(
+    error: str = "",
+    info: str = "",
+    email: str = "",
+    username: str = ""
+) -> str:
+    """Render the register page."""
     from kiro_gateway.metrics import metrics
     from kiro_gateway.config import OAUTH_CLIENT_ID, GITHUB_CLIENT_ID
 
@@ -5923,50 +6218,88 @@ def render_login_page(
     )
     register_disabled = "disabled" if self_use_enabled else ""
 
-    # 检查哪些登录方式已配置
     linuxdo_enabled = bool(OAUTH_CLIENT_ID)
     github_enabled = bool(GITHUB_CLIENT_ID)
-
-    # 生成登录按钮 HTML
-    login_buttons = ""
-    if linuxdo_enabled:
-        login_buttons += '''
-          <a href="/oauth2/login" class="btn-login btn-linuxdo">
-            <img src="https://linux.do/uploads/default/optimized/4X/c/c/d/ccd8c210609d498cbeb3d5201d4c259348447562_2_32x32.png" width="24" height="24" alt="LinuxDo" style="border-radius: 6px; background: white; padding: 2px;">
-            <span>LinuxDo 登录</span>
-          </a>
-        '''
-
-    if github_enabled:
-        login_buttons += '''
-          <a href="/oauth2/github/login" class="btn-login btn-github">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-            <span>GitHub 登录</span>
-          </a>
-        '''
-
-    # 如果没有配置任何登录方式，显示提示
-    if not login_buttons:
-        login_buttons = '''
-          <div class="p-6 rounded-lg text-center" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35);">
-            <div class="text-3xl mb-3">⚠️</div>
-            <p class="font-medium mb-2" style="color: #d97706;">OAuth2 登录未配置</p>
-            <p class="text-sm" style="color: var(--text-muted);">请在 .env 文件中配置 LinuxDo 或 GitHub OAuth2 凭证</p>
-            <div class="mt-4 text-xs" style="color: var(--text-muted);">
-              参考文档：<a href="/docs" class="text-indigo-400 hover:underline">配置指南</a>
-            </div>
-          </div>
-        '''
+    login_buttons = _build_login_buttons(linuxdo_enabled, github_enabled)
+    if self_use_enabled:
+        login_link_html = '<div class="text-xs" style="color: var(--text-muted);">自用模式下禁止新注册</div>'
+    else:
+        login_link_html = '<a href="/login" class="text-sm text-indigo-400 hover:underline">已有账号？去登录</a>'
 
     return f'''<!DOCTYPE html>
 <html lang="zh">
 <head>{COMMON_HEAD}
   <style>
-    .login-card {{
-      background: var(--bg-card);
-      border: 1px solid var(--border);
+    @import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+    body {{
+      background:
+        radial-gradient(1200px 600px at 10% 10%, rgba(16, 185, 129, 0.14), transparent),
+        radial-gradient(900px 520px at 90% 20%, rgba(14, 165, 233, 0.16), transparent),
+        radial-gradient(800px 500px at 50% 100%, rgba(245, 158, 11, 0.12), transparent),
+        var(--bg-main);
+      font-family: "Space Grotesk", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }}
+    .auth-shell {{
+      position: relative;
+      overflow: hidden;
+    }}
+    .auth-shell::before {{
+      content: "";
+      position: absolute;
+      inset: -10% 0 auto 0;
+      height: 60%;
+      background-image: radial-gradient(circle at 20% 20%, rgba(148, 163, 184, 0.16) 0, transparent 35%);
+      opacity: 0.6;
+      pointer-events: none;
+    }}
+    .auth-grid {{
+      position: relative;
+      display: grid;
+      gap: 2.5rem;
+      align-items: center;
+    }}
+    @media (min-width: 1024px) {{
+      .auth-grid {{ grid-template-columns: 1.05fr 0.95fr; }}
+    }}
+    .auth-card {{
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72));
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 1.75rem;
+      box-shadow: 0 32px 70px -40px rgba(15, 23, 42, 0.45);
+      padding: 2rem;
+      backdrop-filter: blur(18px);
+    }}
+    .dark .auth-card {{
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.82));
+      border-color: rgba(148, 163, 184, 0.22);
+    }}
+    .auth-title {{
+      font-family: "Newsreader", "Songti SC", serif;
+      font-size: 2rem;
+      letter-spacing: 0.02em;
+    }}
+    .auth-subtitle {{
+      color: var(--text-muted);
+    }}
+    .auth-aside {{
       border-radius: 1.5rem;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+      padding: 2rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(16, 185, 129, 0.1));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+    }}
+    .dark .auth-aside {{
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(16, 185, 129, 0.16));
+    }}
+    .auth-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      background: rgba(15, 23, 42, 0.9);
+      color: #fff;
     }}
     .btn-login {{
       display: flex;
@@ -5975,45 +6308,69 @@ def render_login_page(
       gap: 12px;
       width: 100%;
       padding: 14px 24px;
-      border-radius: 12px;
+      border-radius: 14px;
       font-weight: 600;
       font-size: 1rem;
       transition: all 0.3s ease;
       text-decoration: none;
     }}
-    .btn-login:hover {{ transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2); }}
-    .btn-linuxdo {{ background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; }}
-    .btn-linuxdo:hover {{ background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }}
-    .btn-github {{ background: #24292f; color: white; }}
-    .btn-github:hover {{ background: #1b1f23; }}
-    .logo-bounce {{ animation: bounce 2s infinite; }}
+    .btn-login:hover {{ transform: translateY(-2px); box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.35); }}
+    .btn-linuxdo {{ background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); color: white; }}
+    .btn-linuxdo:hover {{ background: linear-gradient(135deg, #0284c7 0%, #16a34a 100%); }}
+    .btn-github {{ background: #0f172a; color: white; }}
+    .btn-github:hover {{ background: #111827; }}
     .auth-label {{ font-size: 0.85rem; color: var(--text-muted); }}
     .auth-input {{
       width: 100%;
-      padding: 0.7rem 0.9rem;
-      border-radius: 0.75rem;
+      padding: 0.75rem 0.95rem;
+      border-radius: 0.85rem;
       border: 1px solid var(--border);
       background: var(--bg-input);
       color: var(--text);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }}
     .auth-input:focus {{
       outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
     }}
     .btn-auth {{
       width: 100%;
-      padding: 0.75rem 1rem;
-      border-radius: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-radius: 0.9rem;
       font-weight: 600;
-      transition: all 0.2s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
       border: none;
       cursor: pointer;
     }}
+    .btn-auth:hover {{ transform: translateY(-1px); box-shadow: 0 12px 28px -16px rgba(15, 23, 42, 0.4); }}
     .btn-auth:disabled {{
       opacity: 0.6;
       cursor: not-allowed;
       transform: none;
+      box-shadow: none;
+    }}
+    .feature-list {{
+      display: grid;
+      gap: 0.85rem;
+      margin-top: 1.25rem;
+      color: var(--text);
+      font-size: 0.95rem;
+    }}
+    .feature-item {{
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }}
+    .feature-icon {{
+      width: 2rem;
+      height: 2rem;
+      border-radius: 0.8rem;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      font-size: 1.05rem;
     }}
     @keyframes bounce {{
       0%, 100% {{ transform: translateY(0); }}
@@ -6024,62 +6381,71 @@ def render_login_page(
 <body data-self-use="{body_self_use_attr}">
   {COMMON_NAV}
 
-  <main class="flex-1 flex items-center justify-center py-12 px-4" style="min-height: calc(100vh - 200px);">
-    <div class="w-full max-w-sm">
-      <div class="login-card p-8">
-        <div class="text-center mb-8">
-          <div class="logo-bounce inline-block text-6xl mb-4">⚡</div>
-          <h1 class="text-2xl font-bold mb-2">欢迎使用 KiroGate</h1>
-          <p style="color: var(--text-muted);">选择登录方式开始使用</p>
-        </div>
-        {error_html}
-        {info_html}
-        <div class="self-use-only mb-6 px-4 py-3 rounded-lg text-sm" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #d97706;">
-          自用模式已开启：仅限已注册用户登录。
-        </div>
-
-        <div class="space-y-4 mb-6">
-          <form method="post" action="/auth/login" class="space-y-3">
-            <div class="text-sm font-semibold">邮箱登录</div>
-            <label class="auth-label" for="loginEmail">邮箱</label>
-            <input id="loginEmail" name="email" type="email" class="auth-input" required value="{safe_email}">
-            <label class="auth-label" for="loginPassword">密码</label>
-            <input id="loginPassword" name="password" type="password" class="auth-input" required>
-            <button type="submit" class="btn-auth" style="background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); color: #fff;">登录</button>
-          </form>
-          <form method="post" action="/auth/register" class="space-y-3">
-            <div class="text-sm font-semibold">邮箱注册</div>
-            <label class="auth-label" for="registerEmail">邮箱</label>
-            <input id="registerEmail" name="email" type="email" class="auth-input" required value="{safe_email}">
-            <label class="auth-label" for="registerUsername">用户名（可选）</label>
-            <input id="registerUsername" name="username" type="text" class="auth-input" value="{safe_username}">
-            <label class="auth-label" for="registerPassword">密码（至少 8 位）</label>
-            <input id="registerPassword" name="password" type="password" class="auth-input" required minlength="8">
-            <button type="submit" class="btn-auth" style="background: rgba(15, 23, 42, 0.9); color: #fff;" {register_disabled}>注册</button>
-            <div class="text-xs" style="color: var(--text-muted);">
-              {("注册后需管理员审核通过" if require_approval else "注册成功后可直接登录") if not self_use_enabled else "自用模式下禁止新注册"}
+  <main class="auth-shell flex-1 py-12 px-4" style="min-height: calc(100vh - 200px);">
+    <div class="max-w-5xl mx-auto">
+      <div class="auth-grid">
+        <div class="auth-card">
+          <div class="mb-8">
+            <span class="auth-badge">注册入口</span>
+            <div class="mt-4">
+              <div class="logo-bounce inline-block text-5xl mb-4">✨</div>
+              <h1 class="auth-title font-bold mb-2">创建新账号</h1>
+              <p class="auth-subtitle">使用邮箱注册或选择 OAuth</p>
             </div>
-          </form>
-        </div>
-
-        <div class="space-y-4">
-          {login_buttons}
-        </div>
-
-        <div class="my-8 flex items-center">
-          <div class="flex-1 h-px" style="background: var(--border);"></div>
-          <span class="px-4 text-sm" style="color: var(--text-muted);">登录后可以</span>
-          <div class="flex-1 h-px" style="background: var(--border);"></div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4 text-center text-sm">
-          <div class="p-3 rounded-xl" style="background: var(--bg-main);">
-            <div class="text-2xl mb-1">🎁</div>
-            <div style="color: var(--text-muted);">添加 Token</div>
           </div>
-          <div class="p-3 rounded-xl" style="background: var(--bg-main);">
-            <div class="text-2xl mb-1">🔑</div>
-            <div style="color: var(--text-muted);">生成 API Key</div>
+          {error_html}
+          {info_html}
+          <div class="self-use-only mb-6 px-4 py-3 rounded-lg text-sm" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #d97706;">
+            自用模式已开启：仅限已注册用户登录。
+          </div>
+
+          <div class="space-y-4 mb-6">
+            <form method="post" action="/auth/register" class="space-y-3">
+              <div class="text-sm font-semibold">邮箱注册</div>
+              <label class="auth-label" for="registerEmail">邮箱</label>
+              <input id="registerEmail" name="email" type="email" class="auth-input" required value="{safe_email}">
+              <label class="auth-label" for="registerUsername">用户名（可选）</label>
+              <input id="registerUsername" name="username" type="text" class="auth-input" value="{safe_username}">
+              <label class="auth-label" for="registerPassword">密码（至少 8 位）</label>
+              <input id="registerPassword" name="password" type="password" class="auth-input" required minlength="8">
+              <button type="submit" class="btn-auth" style="background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%); color: #fff;" {register_disabled}>注册</button>
+              <div class="text-xs" style="color: var(--text-muted);">
+                {("注册后需管理员审核通过" if require_approval else "注册成功后可直接登录") if not self_use_enabled else "自用模式下禁止新注册"}
+              </div>
+            </form>
+            <div class="text-right">{login_link_html}</div>
+          </div>
+
+          <div class="space-y-4">
+            {login_buttons}
+          </div>
+        </div>
+
+        <div class="auth-aside">
+          <div class="text-xl font-semibold mb-2">加入协作网络</div>
+          <p class="text-sm" style="color: var(--text-muted);">马上开启你的专属 Token 与 API Key 管理。</p>
+          <div class="feature-list">
+            <div class="feature-item">
+              <div class="feature-icon">🧭</div>
+              <div>
+                <div class="font-medium">快速引导</div>
+                <div class="text-xs" style="color: var(--text-muted);">注册后直接进入控制台引导</div>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon">📊</div>
+              <div>
+                <div class="font-medium">可视化面板</div>
+                <div class="text-xs" style="color: var(--text-muted);">实时查看 Token 使用情况</div>
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon">🛡️</div>
+              <div>
+                <div class="font-medium">审批机制</div>
+                <div class="text-xs" style="color: var(--text-muted);">注册审批与权限一目了然</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
