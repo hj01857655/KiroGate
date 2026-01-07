@@ -6,6 +6,7 @@
 .vscode/
 .idea/
 .shard/
+.kiro/
 
 # Python
 __pycache__/
