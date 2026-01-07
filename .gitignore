@@ -32,3 +32,8 @@ htmlcov/
 
 # Data files
 data/
+
+# Sensitive files (do not commit)
+DEPLOYMENT_CONFIG.md
+setup-secrets.bat
+deploy-*.bat
